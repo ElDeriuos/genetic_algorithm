@@ -167,6 +167,26 @@ To write your own GA loop, the operators are public. Each takes its random numbe
 | `creep_mutation(genes, mask, r, s, max_step, lower, upper)` | inout `genes`, `r`, `s` in [0,1) | Integer step of size `round(max_step**r)` (1 … `max_step`, never 0), downward if `s < 0.5`, where `mask`; clipped to bounds. Used by the integer GA. |
 | `random_reset_mutation(genes, mask, r, lower, upper)` | inout `genes`, `r` in [0,1) | `lower + floor(r × (upper − lower + 1))` where `mask`. Suits categorical integers, where neighbouring values mean nothing. |
 
+## Benchmark results
+
+The standard benchmarks in `test/test_benchmarks.f90`, re-run with each test's seed and default settings (population 50, 200 generations). Left: the problem and the best chromosome of every generation. Right: its distance to the optimum per generation, with the test's pass threshold (dashed).
+
+**OneMax** (32 bits, maximize the number of 1-bits): every bit is 1 from generation 21.
+
+![OneMax: grid of the best 32-bit string per generation, with the last 0-bits disappearing by generation 21; the distance to the optimum falls from 9 missing bits to 0](docs/images/benchmark_onemax.png)
+
+**Sphere** (De Jong F1, 3 variables): a large first jump toward the centre, then small steps onto the optimum; error below 10⁻⁴ after 200 generations.
+
+![Sphere: contour map with the best chromosome's path stepping in to the origin; error falls from about 3.6 to below 1e-4](docs/images/benchmark_sphere.png)
+
+**Rastrigin** (2 variables, a local optimum near every integer point): both the real-coded and the binary-decoded GA hop between local optima before settling in the global basin; the binary run ends more precise.
+
+![Rastrigin: contour map of the egg-crate landscape with two paths, real and binary, jumping between local minima before reaching the origin; both end below the 0.1 threshold](docs/images/benchmark_rastrigin.png)
+
+**Rosenbrock** (De Jong F2, 2 variables, optimum in a narrow curved valley): the best first slides down the valley, where the function is lower, then climbs back along it to (1, 1).
+
+![Rosenbrock: log-scale contour map of the curved valley with the best chromosome's path going down to (0.4, 0.1) and back up to the optimum at (1, 1); error falls below 0.01 by generation 131](docs/images/benchmark_rosenbrock.png)
+
 ## Tests
 
 ```sh
