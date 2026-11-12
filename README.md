@@ -123,12 +123,12 @@ Only the array matching the call form is allocated; after invalid input (`stat /
 
 Choose by what your variables are. With a realistic fitness function, run time is (number of fitness calls) × (cost of one call); the GA's own work per generation is about the same for real and integer (binary is ~4× more, for 16 bits per variable).
 
-Generations needed to reach the exact optimum of `sum((x-3)**2)`, 10 variables, median of 8 seeds, default settings:
+Generations needed to reach the exact optimum of `sum((x-3)**2)`, 10 variables, median of 8 seeds, default settings (every run is plotted under [Encodings](#encodings)):
 
 | Range | integer | real (until rounding gives the optimum) | binary, Gray (16 bits/var) | binary, plain |
 |---|---|---|---|---|
 | [-20, 20] | **80** | 205 | 89 | never |
-| [-100, 100] | 276 | 1139 | **157** | never |
+| [-100, 100] | 276.5 | 1139.5 | **157** | never |
 | [-1000, 1000] | 530 | never (3000 cap) | **288** | never |
 
 - **Integer variables** (counts, sizes, ordered levels): use the integer form; it hits the exact optimum and can stop there with `target_fitness`.
@@ -169,7 +169,16 @@ To write your own GA loop, the operators are public. Each takes its random numbe
 
 ## Benchmark results
 
-The standard benchmarks in `test/test_benchmarks.f90`, re-run with each test's seed and default settings (population 50, 200 generations). Left: the problem and the best chromosome of every generation. Right: its distance to the optimum per generation, with the test's pass threshold (dashed).
+All figures re-run the tests in `test/test_benchmarks.f90` with each test's own seed and options. Distance to the optimum is plotted per generation (0 = optimum); the dashed line is the test's pass threshold or generation limit, and a dot marks where the run stopped.
+
+- [Standard benchmarks](#standard-benchmarks): OneMax, Sphere, Rastrigin, Rosenbrock
+- [Solver tests](#solver-tests): every solver test, in three groups
+- [Selection × crossover](#selection--crossover)
+- [Encodings](#encodings): integer vs real vs binary on three range widths
+
+### Standard benchmarks
+
+Default settings (population 50, 200 generations). Left: the problem and the best chromosome of every generation. Right: its distance to the optimum per generation.
 
 **OneMax** (32 bits, maximize the number of 1-bits): every bit is 1 from generation 21.
 
@@ -186,6 +195,36 @@ The standard benchmarks in `test/test_benchmarks.f90`, re-run with each test's s
 **Rosenbrock** (De Jong F2, 2 variables, optimum in a narrow curved valley): the best first slides down the valley, where the function is lower, then climbs back along it to (1, 1).
 
 ![Rosenbrock: log-scale contour map of the curved valley with the best chromosome's path going down to (0.4, 0.1) and back up to the optimum at (1, 1); error falls below 0.01 by generation 131](docs/images/benchmark_rosenbrock.png)
+
+### Solver tests
+
+**GA mechanics:** OneMax-32 is solved at generation 21; with elitism the best of OneMax-64 only ever improves (24 → 2 missing bits in 30 generations); with `target_fitness` the run stops at generation 17 instead of 200.
+
+![Three panels: OneMax-32 missing bits falling from 9 to 0 by generation 21; OneMax-64 missing bits falling stepwise from 24 to 2 without ever rising; OneMax-32 run stopping at generation 17, before the 200 limit](docs/images/tests_mechanics.png)
+
+**Integer and Gray encodings:** the integer GA hits exact optima (5-D target at generation 18; range ±1000 at generation 251, limit 1500), and on range ±100 it reaches the exact optimum at generation 155 while the real GA needs 1338 to get within rounding distance. Gray-coded binary converges on range ±1000 in 337 generations.
+
+![Four panels: integer 5-D target reaching 0 at generation 18; integer range ±1000 reaching 0 at generation 251, well before the 1500 limit; integer versus real on range ±100, integer reaching 0 at 155 generations and real getting below 0.25 at 1338; Gray-coded binary on range ±1000 getting below 0.25 at generation 337](docs/images/tests_encodings.png)
+
+**Continuous benchmarks:** Sphere-3D, Rastrigin-2D (real-coded and binary-decoded) and Rosenbrock-2D all end below their thresholds.
+
+![Four panels on log scales: Sphere-3D error ending at 8e-5 (threshold 0.01); Rastrigin-2D real ending at 3e-3 and binary-decoded at 2e-6 (threshold 0.1); Rosenbrock-2D ending at 3e-3 (threshold 0.01)](docs/images/tests_continuous.png)
+
+### Selection × crossover
+
+Generations to solve OneMax-32 for every selection and crossover pair (one run each, so differences of a few generations are noise). All nine solve it, in 15–41 generations.
+
+![Heatmap of generations to solve OneMax-32: rows roulette, tournament, rank; columns one-point, two-point, uniform; values from 15 (roulette with uniform) to 41 (roulette with two-point)](docs/images/operators.png)
+
+### Encodings
+
+Generations to the exact optimum of `sum((x-3)**2)`, 10 variables, 8 seeds, default settings (the data behind the table in [Choosing an encoding](#choosing-an-encoding)). The three figures share one y-axis.
+
+![Range ±20: medians integer 80, real 205, binary Gray 89; binary plain never solved](docs/images/encodings_20.png)
+
+![Range ±100: medians integer 276.5, real 1139.5, binary Gray 157; binary plain never solved](docs/images/encodings_100.png)
+
+![Range ±1000: medians integer 530, binary Gray 288; real and binary plain never solved within 3000 generations](docs/images/encodings_1000.png)
 
 ## Tests
 
