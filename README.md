@@ -17,7 +17,7 @@ Terms are defined in [GLOSSARY.md](GLOSSARY.md); design decisions in [docs/adr](
 
 ```toml
 [dependencies]
-genetic_algorithm = { git = "https://github.com/ElDeriuos/genetic_algorithm", tag = "v0.1.1" }
+genetic_algorithm = { git = "https://github.com/ElDeriuos/genetic_algorithm", tag = "v0.2.0" }
 ```
 
 **CMake:** `add_subdirectory(genetic_algorithm)` then `target_link_libraries(your_app PRIVATE genetic_algorithm)`.
