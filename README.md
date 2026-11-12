@@ -5,7 +5,8 @@ A classic genetic algorithm as one Modern Fortran module (F2018, `real64`, no de
 - **Encodings:** binary (bit strings), real, integer
 - **Selection:** roulette (with windowing), tournament, rank
 - **Crossover:** one-point, two-point, uniform
-- **Mutation:** bit-flip (binary), Gaussian clipped to bounds (real), random reset (integer)
+- **Mutation:** bit-flip (binary), Gaussian clipped to bounds (real), multi-scale creep (integer)
+- **Decoding:** bit strings to reals, plain binary or Gray code
 - **Replacement:** generational with elitism; stops at `max_generations` or `target_fitness`
 
 Terms are defined in [GLOSSARY.md](GLOSSARY.md); design decisions in [docs/adr](docs/adr).
@@ -87,7 +88,7 @@ Write it as a **module procedure** with exactly one of these interfaces (named `
 
 - **Minimizing:** return `-f`. Fitness may be negative.
 - **Extra data** (coefficients, measurements…): keep it in module variables and set them before calling `ga_optimize`, since the fitness receives only the chromosome.
-- **Continuous problem with classic bit strings:** use the binary form and decode inside the fitness, for example `x = decode(bits, lower, upper)`.
+- **Continuous problem with classic bit strings:** use the binary form and decode inside the fitness, for example `x = decode(bits, lower, upper, gray=.true.)`. Gray code is recommended (see [Choosing an encoding](#choosing-an-encoding)).
 - **Internal procedures** (after `contains` inside a program) also work, but gfortran then needs an executable stack. Prefer module procedures.
 
 ## `ga_options`: settings
@@ -98,7 +99,7 @@ Write it as a **module procedure** with exactly one of these interfaces (named `
 | `max_generations` | integer | `200` | Upper limit on generations. `0` evaluates only the random initial population. | ≥ 0 |
 | `crossover_rate` | real64 | `0.9` | Probability that a parent pair is recombined; otherwise the children are copies. | [0, 1] |
 | `mutation_rate` | real64 | `-1` | Probability that **each gene** mutates. Negative means `1 / number of genes` (the classic default). | ≤ 1 |
-| `mutation_scale` | real64 | `0.1` | Real encoding only: Gaussian step σ = `mutation_scale × (upper − lower)`, result clipped to the bounds. Smaller gives finer results but a higher risk of local optima. | ≥ 0 |
+| `mutation_scale` | real64 | `0.1` | Size of mutation steps relative to the range. **Real:** Gaussian step σ = `mutation_scale × (upper − lower)`. **Integer:** largest creep step = `mutation_scale × (upper − lower)` (at least 1); step sizes are spread evenly over orders of magnitude between 1 and that. Results are clipped to the bounds. Smaller gives finer real results but a higher risk of local optima. Unused for binary. | ≥ 0 |
 | `selection` | integer | `SELECT_TOURNAMENT` | `SELECT_ROULETTE`: probability ∝ fitness − worst. `SELECT_TOURNAMENT`: best of `tournament_size` random picks. `SELECT_RANK`: probability ∝ rank, so only the fitness order matters. | one of the 3 |
 | `tournament_size` | integer | `2` | Contestants per tournament, drawn with replacement. Larger means stronger selection pressure. | ≥ 1 |
 | `crossover` | integer | `CROSSOVER_ONE_POINT` | `CROSSOVER_ONE_POINT`: swap tails after a random cut. `CROSSOVER_TWO_POINT`: swap a random middle segment. `CROSSOVER_UNIFORM`: each gene from either parent, 50/50. | one of the 3 |
@@ -117,6 +118,23 @@ Write it as a **module procedure** with exactly one of these interfaces (named `
 | `ints(:)` | integer array | Best chromosome, **integer** form only. |
 
 Only the array matching the call form is allocated; after invalid input (`stat /= 0`) none is.
+
+## Choosing an encoding
+
+Choose by what your variables are. With a realistic fitness function, run time is (number of fitness calls) × (cost of one call); the GA's own work per generation is about the same for real and integer (binary is ~4× more, for 16 bits per variable).
+
+Generations needed to reach the exact optimum of `sum((x-3)**2)`, 10 variables, median of 8 seeds, default settings:
+
+| Range | integer | real (until rounding gives the optimum) | binary, Gray (16 bits/var) | binary, plain |
+|---|---|---|---|---|
+| [-20, 20] | **80** | 205 | 89 | never |
+| [-100, 100] | 276 | 1139 | **157** | never |
+| [-1000, 1000] | 530 | never (3000 cap) | **288** | never |
+
+- **Integer variables** (counts, sizes, ordered levels): use the integer form; it hits the exact optimum and can stop there with `target_fitness`.
+- **Continuous variables:** real is the simplest. Binary with `gray=.true.` reached the region of the optimum faster in this test, but its precision is limited to `(upper − lower) / (2**bits − 1)`.
+- **Plain binary** gets stuck at "Hamming cliffs" (for example 0111…1 → 1000…0 needs every bit to flip). Prefer `gray=.true.`.
+- **Categorical integers** (codes where 3 is not "between" 2 and 4): neighbouring steps are meaningless, so write your own loop with `random_reset_mutation`.
 
 ## Reproducible runs
 
@@ -137,7 +155,7 @@ To write your own GA loop, the operators are public. Each takes its random numbe
 
 | Procedure | Arguments → result | What it does |
 |---|---|---|
-| `decode(bits, lower, upper)` | `logical(:)`, `real64(:)`, `real64(:)` → `real64(size(lower))` | Splits bits evenly per variable (`size(bits)/size(lower)` each, most significant bit first) and maps each block linearly onto `[lower, upper]`. |
+| `decode(bits, lower, upper [, gray])` | `logical(:)`, `real64(:)`, `real64(:)`, `logical` → `real64(size(lower))` | Splits bits evenly per variable (`size(bits)/size(lower)` each, most significant bit first) and maps each block linearly onto `[lower, upper]`. `gray=.true.` reads each block as Gray code; the default is plain binary. |
 | `roulette_select(fitness, r)` | `real64(:)`, `r(:)` uniform in [0,1) → `integer(size(r))` | One pick per `r`; weight = fitness − worst. |
 | `rank_select(fitness, r)` | same | One pick per `r`; weight = rank (worst 1 … best N). |
 | `tournament_select(fitness, contestants)` | `real64(:)`, `integer(k, m)` → `integer(m)` | Each column of indices is one tournament; returns each column's fittest. |
@@ -146,7 +164,8 @@ To write your own GA loop, the operators are public. Each takes its random numbe
 | `uniform_crossover(p1, p2, mask, c1, c2)` | `logical mask(n)` | `c1` takes `p1` where `mask`, else `p2`; `c2` the mirror. |
 | `bit_flip_mutation(genes, mask)` | inout `genes`, `logical mask` | Flips 0↔1 where `mask`. |
 | `gaussian_mutation(genes, mask, noise, lower, upper)` | inout `genes`, arrays | `genes + noise` where `mask`, clipped to bounds. |
-| `random_reset_mutation(genes, mask, r, lower, upper)` | inout `genes`, `r` in [0,1) | `lower + floor(r × (upper − lower + 1))` where `mask`. |
+| `creep_mutation(genes, mask, r, s, max_step, lower, upper)` | inout `genes`, `r`, `s` in [0,1) | Integer step of size `round(max_step**r)` (1 … `max_step`, never 0), downward if `s < 0.5`, where `mask`; clipped to bounds. Used by the integer GA. |
+| `random_reset_mutation(genes, mask, r, lower, upper)` | inout `genes`, `r` in [0,1) | `lower + floor(r × (upper − lower + 1))` where `mask`. Suits categorical integers, where neighbouring values mean nothing. |
 
 ## Tests
 
@@ -156,7 +175,7 @@ cmake -S . -B build/cmake && cmake --build build/cmake
 ctest --test-dir build/cmake --output-on-failure       # the same, plus expected-failure tests
 ```
 
-Benchmarks: OneMax-32, Sphere-3D, Rastrigin-2D (real and binary-decoded), Rosenbrock-2D, an integer target, and every selection × crossover pair. Expected-failure tests (in `test/xfail`, CMake only, since fpm cannot mark a test as expected to fail): invalid input without `stat` must stop the program, and a negative control proves the benchmark checks detect a GA that does not evolve.
+Benchmarks: OneMax-32, Sphere-3D, Rastrigin-2D (real and binary-decoded), Rosenbrock-2D, an integer target, a wide-range shifted sphere (integer exact optimum, integer faster than real, Gray-coded binary), and every selection × crossover pair. Expected-failure tests (in `test/xfail`, CMake only, since fpm cannot mark a test as expected to fail): invalid input without `stat` must stop the program, and a negative control proves the benchmark checks detect a GA that does not evolve.
 
 ## License
 

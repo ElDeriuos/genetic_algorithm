@@ -6,7 +6,7 @@ module genetic_algorithm
   public :: decode
   public :: tournament_select, roulette_select, rank_select
   public :: one_point_crossover, two_point_crossover, uniform_crossover
-  public :: bit_flip_mutation, gaussian_mutation, random_reset_mutation
+  public :: bit_flip_mutation, gaussian_mutation, random_reset_mutation, creep_mutation
   public :: ga_optimize, binary_fitness, real_fitness, integer_fitness
 
   integer, parameter, public :: SELECT_ROULETTE = 1, SELECT_TOURNAMENT = 2, SELECT_RANK = 3
@@ -280,7 +280,7 @@ contains
 
     subroutine mutate(genes)
       real(dp), intent(inout) :: genes(:)
-      real(dp) :: u(n), z(n)
+      real(dp) :: u(n), z(n), s(n)
       call random_number(u)
       select case (enc)
       case (ENC_BINARY)
@@ -290,7 +290,8 @@ contains
         call gaussian_mutation(genes, u < pm, z * opts%mutation_scale * (upper - lower), lower, upper)
       case (ENC_INTEGER)
         call random_number(z)
-        call random_reset_mutation(genes, u < pm, z, lower, upper)
+        call random_number(s)
+        call creep_mutation(genes, u < pm, z, s, opts%mutation_scale * (upper - lower), lower, upper)
       end select
     end subroutine mutate
 
@@ -331,6 +332,17 @@ contains
 
     where (mask) genes = lower + floor(r*(upper - lower + 1))
   end subroutine random_reset_mutation
+
+  !> Integer genes: where mask is true, step by round(max_step**r) (so 1 .. max_step,
+  !> spread evenly over orders of magnitude, never 0), downward if s < 0.5,
+  !> then clip to [lower, upper]. r and s are uniform draws in [0,1).
+  pure subroutine creep_mutation(genes, mask, r, s, max_step, lower, upper)
+    real(dp), intent(inout) :: genes(:)
+    logical, intent(in) :: mask(:)
+    real(dp), intent(in) :: r(:), s(:), max_step(:), lower(:), upper(:)
+
+    where (mask) genes = min(max(genes + sign(anint(max(1._dp, max_step)**r), s - 0.5_dp), lower), upper)
+  end subroutine creep_mutation
 
   !> Children swap tails after gene `cut` (1 <= cut < size(p1)).
   pure subroutine one_point_crossover(p1, p2, cut, c1, c2)
@@ -423,18 +435,25 @@ contains
 
   !> Map a bit string onto reals: size(bits)/size(lower) bits per variable,
   !> most significant bit first, scaled linearly onto [lower, upper].
-  pure function decode(bits, lower, upper) result(x)
+  !> gray=.true. reads each block as Gray code (neighbouring values differ in one bit).
+  pure function decode(bits, lower, upper, gray) result(x)
     logical, intent(in) :: bits(:)
     real(dp), intent(in) :: lower(:), upper(:)
+    logical, intent(in), optional :: gray
     real(dp) :: x(size(lower))
     integer :: i, j, m
     real(dp) :: v
+    logical :: use_gray, b
 
+    use_gray = .false.
+    if (present(gray)) use_gray = gray
     m = size(bits) / size(lower)
     do i = 1, size(lower)
       v = 0
+      b = .false.
       do j = (i - 1)*m + 1, i*m
-        v = 2*v + merge(1, 0, bits(j))
+        b = merge(b .neqv. bits(j), bits(j), use_gray)   ! Gray -> binary: bit = previous bit xor Gray bit
+        v = 2*v + merge(1, 0, b)
       end do
       x(i) = lower(i) + (upper(i) - lower(i)) * v / (2._dp**m - 1)
     end do

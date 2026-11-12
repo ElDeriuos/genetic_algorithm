@@ -39,6 +39,34 @@ program test_benchmarks
   call ga_optimize(neg_int_distance, spread(-20, 1, 5), spread(20, 1, 5), opts, res)
   call check(all(res%ints == INT_TARGET) .and. res%fitness == 0, 'integer GA finds the exact integer optimum')
 
+  ! --- integer creep mutation: exact optimum on a wide range (random reset never got there)
+  call seed_rng(21)
+  call ga_optimize(neg_shifted_sphere_int, spread(-1000, 1, 10), spread(1000, 1, 10), &
+                   ga_options(target_fitness=0._dp, max_generations=1500), res)
+  call check(res%fitness == 0 .and. all(res%ints == 3), &
+             'integer GA hits the exact optimum on [-1000,1000]^10 within 1500 generations')
+
+  ! --- integer vs real on the same problem: exact optimum vs. close enough that rounding gives it
+  block
+    integer :: gen_int
+    logical :: int_solved
+    call seed_rng(22)
+    call ga_optimize(neg_shifted_sphere_int, spread(-100, 1, 10), spread(100, 1, 10), &
+                     ga_options(target_fitness=0._dp, max_generations=3000), res)
+    int_solved = res%fitness == 0
+    gen_int = res%generations
+    call seed_rng(22)
+    call ga_optimize(neg_shifted_sphere, spread(-100._dp, 1, 10), spread(100._dp, 1, 10), &
+                     ga_options(target_fitness=-0.25_dp, max_generations=3000), res)
+    call check(int_solved .and. gen_int < res%generations, &
+               'integer GA reaches the integer optimum in fewer generations than real GA')
+  end block
+
+  ! --- Gray-coded binary: no Hamming cliffs, so it converges on a wide range
+  call seed_rng(23)
+  call ga_optimize(neg_shifted_sphere_gray, 16*10, ga_options(target_fitness=-0.25_dp, max_generations=1000), res)
+  call check(-res%fitness < 0.25_dp, 'binary GA with Gray decoding converges on [-1000,1000]^10 within 1000 generations')
+
   ! --- Rastrigin: multimodal; < 0.1 means the global basin (nearest local optimum ~0.995)
   call seed_rng(6)
   call ga_optimize(neg_rastrigin, spread(-5.12_dp, 1, 2), spread(5.12_dp, 1, 2), opts, res)

@@ -72,6 +72,23 @@ program test_operators
     call check(all(g == [1, 6, 3, 0]), 'random-reset mutation draws a whole number within bounds')
   end block
 
+  ! --- creep mutation: |step| = round(max_step**r) spans 1 .. max_step on a log scale, sign from s
+  block
+    real(dp) :: g(5)
+    g = [50, 50, 50, 50, 50]
+    call creep_mutation(g, [T, T, T, F, T], [0._dp, .5_dp, .5_dp, .5_dp, .999_dp], [.9_dp, .1_dp, .9_dp, .9_dp, .9_dp], &
+                        [100._dp, 100._dp, 100._dp, 100._dp, 1._dp], spread(0._dp, 1, 5), spread(55._dp, 1, 5))
+    call check(all(g == [51, 40, 55, 50, 51]), &
+               'creep mutation steps by 1..max_step on a log scale, never 0, clipped to bounds')
+  end block
+
+  ! --- Gray decoding: neighbouring integers differ in exactly one bit
+  call check(near(decode([F,T,F,F], [0._dp], [15._dp], gray=.true.), [7._dp]) .and. &
+             near(decode([T,T,F,F], [0._dp], [15._dp], gray=.true.), [8._dp]), &
+             'Gray decode maps 0100 to 7 and 1100 to 8 (one bit apart)')
+  call check(near(decode([T,T,T,F], [0._dp, 0._dp], [3._dp, 3._dp], gray=.true.), [2._dp, 3._dp]), &
+             'Gray decode converts each variable block separately')
+
 contains
 
   logical function near(a, b)

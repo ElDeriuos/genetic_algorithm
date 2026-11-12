@@ -8,6 +8,7 @@ module benchmarks
   private
   public :: onemax, neg_sphere, neg_int_distance, INT_TARGET
   public :: neg_rastrigin, neg_rastrigin_bits, neg_rosenbrock
+  public :: neg_shifted_sphere, neg_shifted_sphere_int, neg_shifted_sphere_gray
 
   real(dp), parameter :: pi = acos(-1._dp)
 
@@ -35,6 +36,28 @@ contains
     real(dp) :: f
     f = -sum((k - INT_TARGET)**2)
   end function neg_int_distance
+
+  !> Shifted sphere, negated: optimum 0 at x = 3 (an integer point, so all encodings can hit it exactly).
+  function neg_shifted_sphere(x) result(f)
+    real(dp), intent(in) :: x(:)
+    real(dp) :: f
+    f = -sum((x - 3)**2)
+  end function neg_shifted_sphere
+
+  function neg_shifted_sphere_int(k) result(f)
+    integer, intent(in) :: k(:)
+    real(dp) :: f
+    f = -sum((k - 3)**2)
+  end function neg_shifted_sphere_int
+
+  !> Shifted sphere on Gray-coded bit strings: 16 bits per variable onto [-1000, 1000].
+  function neg_shifted_sphere_gray(bits) result(f)
+    logical, intent(in) :: bits(:)
+    real(dp) :: f
+    integer :: n
+    n = size(bits) / 16
+    f = neg_shifted_sphere(decode(bits, spread(-1000._dp, 1, n), spread(1000._dp, 1, n), gray=.true.))
+  end function neg_shifted_sphere_gray
 
   !> Rastrigin, negated: optimum 0 at x = 0, local optima near every integer point.
   function neg_rastrigin(x) result(f)
