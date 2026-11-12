@@ -16,7 +16,7 @@ Terms are defined in [GLOSSARY.md](GLOSSARY.md); design decisions in [docs/adr](
 
 ```toml
 [dependencies]
-genetic_algorithm = { git = "https://github.com/ElDeriuos/genetic_algorithm", tag = "v0.1.0" }
+genetic_algorithm = { git = "https://github.com/ElDeriuos/genetic_algorithm", tag = "v0.1.1" }
 ```
 
 **CMake:** `add_subdirectory(genetic_algorithm)` then `target_link_libraries(your_app PRIVATE genetic_algorithm)`.
@@ -157,3 +157,7 @@ ctest --test-dir build/cmake --output-on-failure       # the same, plus expected
 ```
 
 Benchmarks: OneMax-32, Sphere-3D, Rastrigin-2D (real and binary-decoded), Rosenbrock-2D, an integer target, and every selection × crossover pair. Expected-failure tests (in `test/xfail`, CMake only, since fpm cannot mark a test as expected to fail): invalid input without `stat` must stop the program, and a negative control proves the benchmark checks detect a GA that does not evolve.
+
+## License
+
+[MIT](LICENSE): free to use, modify and redistribute, including commercially; keep the copyright notice.

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(genetic_algorithm VERSION 0.1.0 LANGUAGES Fortran)
+project(genetic_algorithm VERSION 0.1.1 LANGUAGES Fortran)
 
 add_library(genetic_algorithm src/genetic_algorithm.f90)
 set_target_properties(genetic_algorithm PROPERTIES Fortran_MODULE_DIRECTORY ${PROJECT_BINARY_DIR}/mod)
